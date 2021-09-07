@@ -369,20 +369,31 @@ void security_sb_free(struct super_block *sb)
 	call_void_hook(sb_free_security, sb);
 }
 
-int security_sb_copy_data(char *orig, char *copy)
+int security_sb_eat_lsm_opts(char *options, struct security_mnt_opts *opts)
 {
-	return call_int_hook(sb_copy_data, 0, orig, copy);
-}
-EXPORT_SYMBOL(security_sb_copy_data);
+	char *s = (char *)get_zeroed_page(GFP_KERNEL);
+	int err;
 
-int security_sb_remount(struct super_block *sb, void *data)
+	if (!s)
+		return -ENOMEM;
+	err = call_int_hook(sb_copy_data, 0, options, s);
+	if (!err)
+		err = call_int_hook(sb_parse_opts_str, 0, s, opts);
+	free_page((unsigned long)s);
+	return err;
+}
+EXPORT_SYMBOL(security_sb_eat_lsm_opts);
+
+int security_sb_remount(struct super_block *sb,
+			struct security_mnt_opts *opts)
 {
-	return call_int_hook(sb_remount, 0, sb, data);
+	return call_int_hook(sb_remount, 0, sb, opts);
 }
 
-int security_sb_kern_mount(struct super_block *sb, int flags, void *data)
+int security_sb_kern_mount(struct super_block *sb, int flags,
+			   struct security_mnt_opts *opts)
 {
-	return call_int_hook(sb_kern_mount, 0, sb, flags, data);
+	return call_int_hook(sb_kern_mount, 0, sb, flags, opts);
 }
 
 int security_sb_show_options(struct seq_file *m, struct super_block *sb)
@@ -939,6 +950,7 @@ int security_mmap_addr(unsigned long addr)
 {
 	return call_int_hook(mmap_addr, 0, addr);
 }
+EXPORT_SYMBOL_GPL(security_mmap_addr);
 
 int security_file_mprotect(struct vm_area_struct *vma, unsigned long reqprot,
 			    unsigned long prot)
